@@ -129,7 +129,9 @@ def update_logic(id, Model, data, entity):
 
         # Dynamically update fields based on model attributes
         for key, value in data.items():
-            if key == "address":
+            if key == "shape":
+                setattr(item, key, TableShape(value)) 
+            elif key == "address":
                 update_address(value, item)  # Handle address updates separately
             elif key == "cuisines" and isinstance(item, Restaurant):
                 # Fetch cuisines from DB based on provided IDs or names

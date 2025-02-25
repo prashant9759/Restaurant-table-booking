@@ -1,7 +1,58 @@
-from marshmallow import Schema, fields, validate, validates, ValidationError
-from tables import CuisineEnum
+from marshmallow import Schema, fields, validate, validates, ValidationError, post_load
+from tables import CuisineEnum, Weekday, WEEKDAY_BITMASK, TableShape
 
 
+
+
+class TableTypeSchema(Schema):
+    name = fields.Str(required=True, validate=validate.Length(min=1, max=50))
+    capacity = fields.Int(required=True, validate=validate.Range(min=1))
+    description = fields.Str(validate=validate.Length(max=200))
+    is_outdoor = fields.Bool(required=True)
+    is_accessible = fields.Bool(missing=False)
+    shape = fields.Str(
+        required=True,
+        validate=validate.OneOf([shape.value for shape in TableShape]),
+        description="Shape of the table (e.g., 'Round', 'Square', 'Rectangle', 'Oval')"
+    )
+
+    @post_load
+    def validate_table_type(self, data, **kwargs):
+        if data.get("capacity", 1) < 1:
+            raise ValidationError("Table capacity must be at least 1.")
+        return data
+
+
+
+class RestaurantPolicySchema(Schema):
+    id = fields.Int(dump_only=True)
+
+    # Accepts array of days in request body
+    working_days = fields.List(
+        fields.Str(validate=validate.OneOf([day.value for day in Weekday])),
+        required=True,
+        description="List of working days (e.g., ['Monday', 'Wednesday', 'Friday'])"
+    )
+
+    opening_time = fields.Time(required=True, format='%H:%M')
+    closing_time = fields.Time(required=True, format='%H:%M')
+
+    max_party_size = fields.Int(required=True, validate=validate.Range(min=1))
+    max_advance_days = fields.Int(required=True, validate=validate.Range(min=0))
+    reservation_duration = fields.Int(required=True, validate=validate.Range(min=1))
+
+    @validates("working_days")
+    def validate_days(self, value):
+        if not value:
+            raise ValidationError("At least one working day must be selected.")
+
+    @post_load
+    def convert_days_to_bitmask(self, data, **kwargs):
+        """Convert list of days to bitmask before saving to DB."""
+        if data.get("working_days"):
+            day_bitmask = sum(WEEKDAY_BITMASK[day] for day in data["working_days"])
+            data["working_days"] = day_bitmask
+        return data
 
 
 
