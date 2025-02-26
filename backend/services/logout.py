@@ -1,4 +1,4 @@
-from tables import TokenBlocklist
+from models import TokenBlocklist
 from db import db
 
 from datetime import timedelta

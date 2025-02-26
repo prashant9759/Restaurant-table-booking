@@ -1,7 +1,14 @@
-from marshmallow import Schema, fields, validate, validates, ValidationError, post_load
-from tables import CuisineEnum, Weekday, WEEKDAY_BITMASK, TableShape
+from marshmallow import Schema, fields, validate, validates, ValidationError, post_load, validates_schema
+from models import CuisineEnum, Weekday, WEEKDAY_BITMASK, TableShape
 
 
+
+class TableSchema(Schema):
+    id = fields.Int(dump_only=True)
+    table_type_id = fields.Int(required=True)
+    table_number = fields.Str(required=True, validate=validate.Length(min=1))
+    location_description = fields.Str(allow_none=True)
+    is_available = fields.Bool(missing=True)
 
 
 class TableTypeSchema(Schema):
@@ -101,11 +108,37 @@ class RestaurantSchema(Schema):
     )
     # Nested Fields
     address = fields.Nested(AddressSchema, required=True)
+    policy = fields.Nested(RestaurantPolicySchema, required=True)
 
     @validates('cover_image')
     def validate_cover_image(self, value):
         if value and not value.startswith(('http://', 'https://')):
             raise ValidationError("Cover image URL must start with http:// or https://")
+
+
+
+class CuisineUpdateSchema(Schema):
+    add = fields.List(
+        fields.String(validate=validate.OneOf([c.value for c in CuisineEnum])),
+        required=False,
+        missing=[]
+    )
+    remove = fields.List(
+        fields.String(validate=validate.OneOf([c.value for c in CuisineEnum])),
+        required=False,
+        missing=[]
+    )
+
+    @validates_schema
+    def validate_cuisine_conflict(self, data, **kwargs):
+        """Ensure cuisines are not present in both add & remove lists."""
+        add_cuisines = set(data.get("add", []))
+        remove_cuisines = set(data.get("remove", []))
+        conflict = add_cuisines & remove_cuisines
+
+        if conflict:
+            raise ValidationError(f"Cuisines cannot be both added and removed: {', '.join(conflict)}")
+
 
     
 class LoginSchema(Schema):

@@ -6,7 +6,7 @@ from flask_jwt_extended import create_access_token, create_refresh_token, get_jw
 from sqlalchemy.exc import IntegrityError, SQLAlchemyError
 from passlib.hash import pbkdf2_sha256
 
-from tables import Admin
+from models import Admin
 from db import db
 from schemas import AdminSchema, LoginSchema# Use AdminSchema
 from services.logout import logout_logic
@@ -44,7 +44,8 @@ class AdminList(MethodView):
         """Replace the current admin (PUT, idempotent)."""
         check_admin_role()
         admin_id = get_jwt_identity()
-        return update_logic(admin_id, Admin, admin_data, "admin")
+        admin = Admin.query.get_or_404(int(admin_id))
+        return update_logic(admin ,admin_data, "admin")
 
     @jwt_required()
     @blp.arguments(AdminSchema(partial=True))
@@ -52,7 +53,8 @@ class AdminList(MethodView):
         """Update the current admin (PATCH, partial update)."""
         check_admin_role()
         admin_id = get_jwt_identity()
-        return update_logic(admin_id, Admin, admin_data, "admin")
+        admin = Admin.query.get_or_404(int(admin_id))
+        return update_logic(admin ,admin_data, "admin")
 
     @jwt_required()
     @blp.response(204)

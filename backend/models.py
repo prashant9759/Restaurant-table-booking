@@ -77,6 +77,7 @@ class Restaurant(db.Model):
     cover_image = db.Column(db.String(255))
     description = db.Column(db.Text)
     admin_id = db.Column(db.Integer, db.ForeignKey('admin.id'), nullable=False)
+    policy_id = db.Column(db.Integer, db.ForeignKey('restaurant_policy.id'), nullable=False)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     updated_at = db.Column(db.DateTime, default=datetime.utcnow)
     
@@ -91,7 +92,7 @@ class Restaurant(db.Model):
     admin = db.relationship('Admin', backref='restaurants', lazy='joined')
     city_state = db.relationship('CityStateModel', lazy='joined')
     table_types = db.relationship('TableType', backref='restaurant', lazy=True)
-    policies = db.relationship('RestaurantPolicy', backref='restaurant', uselist=False)
+    policy = db.relationship('RestaurantPolicy',  uselist=False, lazy='joined')
     cuisines = db.relationship(
         'CuisineType',
         secondary='restaurant_cuisine',
@@ -127,7 +128,8 @@ class Restaurant(db.Model):
                 "email": self.admin.email if self.admin else None,
                 "phone": self.admin.phone if self.admin else None
             },
-            "cuisines": [cuisine.name for cuisine in self.cuisines] if self.cuisines else []
+            "cuisines": [cuisine.name for cuisine in self.cuisines] if self.cuisines else [],
+            "policy": self.policy.to_dict()
         }
 
 
@@ -189,7 +191,6 @@ class TableType(db.Model):
     
     __table_args__ = (UniqueConstraint('name', 'restaurant_id', name='_name_restaurant_uc'),)
     
-    tables = db.relationship('TableInstance', backref='table_type', lazy=True)
     
     def to_dict(self):
         return {
@@ -214,6 +215,8 @@ class TableInstance(db.Model):
     is_available = db.Column(db.Boolean, default=True)  # Track table availability
     
     reservations = db.relationship('TableReservation', backref='table_instance', lazy=True)
+    # Eagerly load table_type
+    table_type = db.relationship('TableType', backref='tables', lazy='joined')
     
     def to_dict(self):
         return {
@@ -241,7 +244,6 @@ class TableReservation(db.Model):
 class RestaurantPolicy(db.Model):
     __tablename__ = 'restaurant_policy'
     id = db.Column(db.Integer, primary_key=True)
-    restaurant_id = db.Column(db.Integer, db.ForeignKey('restaurant.id'), nullable=False)
     working_days = db.Column(db.Integer, nullable=False)  # Bitmask for days (e.g., Mon, Wed, Fri = 42)
     opening_time = db.Column(db.Time, nullable=False)  # e.g., '09:00'
     closing_time = db.Column(db.Time, nullable=False)  # e.g., '21:00'
@@ -253,7 +255,6 @@ class RestaurantPolicy(db.Model):
         """Convert RestaurantPolicy instance to dict, with working_days as an array."""
         return {
             "id": self.id,
-            "restaurant_id": self.restaurant_id,
             "working_days": self._bitmask_to_days(),
             "opening_time": self.opening_time.strftime("%H:%M"),
             "closing_time": self.closing_time.strftime("%H:%M"),

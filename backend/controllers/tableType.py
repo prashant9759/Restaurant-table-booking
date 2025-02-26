@@ -4,7 +4,7 @@ from flask_jwt_extended import jwt_required, get_jwt_identity, get_jwt
 from sqlalchemy.exc import IntegrityError
 
 from db import db
-from tables import TableType, TableShape, Restaurant
+from models import TableType, TableShape, Restaurant
 from schemas import TableTypeSchema
 from services.helper import *
 
