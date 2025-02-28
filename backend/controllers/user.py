@@ -8,7 +8,7 @@ from flask_jwt_extended import create_access_token, create_refresh_token, get_jw
 from sqlalchemy.exc import IntegrityError, SQLAlchemyError
 from passlib.hash import pbkdf2_sha256
 
-from tables import User
+from models import User
 from db import db
 from schemas import UserSchema, LoginSchema
 from services.logout import logout_logic
@@ -48,7 +48,8 @@ class UserList(MethodView):
         """Replace the current user (PUT, idempotent)."""
         check_user_role()
         user_id = get_jwt_identity()
-        return update_logic(user_id, User, user_data, "user")
+        user = User.query.get_or_404(int(user_id))
+        return update_logic(user, user_data, "user")
 
     @jwt_required()
     @blp.arguments(UserSchema(partial=True))
@@ -56,7 +57,8 @@ class UserList(MethodView):
         """Update the current user (PATCH, partial update)."""
         check_user_role()
         user_id = get_jwt_identity()
-        return update_logic(user_id, User, user_data, "user")
+        user = User.query.get_or_404(int(user_id))
+        return update_logic(user, user_data, "user")
 
     @jwt_required()
     @blp.response(204)

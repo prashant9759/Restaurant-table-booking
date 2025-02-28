@@ -8,8 +8,15 @@ from dotenv import load_dotenv
 
 from db import db
 
+
+from models import CuisineType, CuisineEnum
+
 from controllers.user import blp as UserBlp
 from controllers.admin import blp as AdminBlp
+from controllers.restaurant import blp as RestaurantBlp
+from controllers.tableType import blp as tableTypeBlp
+from controllers.tableInstance import blp as tableBlp
+
 from services.logout import is_token_revoked
 
 load_dotenv()  # Load environment variables from .env file
@@ -87,14 +94,15 @@ def handle_http_exception(e):
 api = Api(app)
 api.register_blueprint(UserBlp)
 api.register_blueprint(AdminBlp)
+api.register_blueprint(RestaurantBlp)
+api.register_blueprint(tableTypeBlp)
+api.register_blueprint(tableBlp)
 
 
 @app.route('/')
 def home():
     return jsonify({"message": "Welcome to the Restaurant Management API!"})
 
-from db import db
-from tables import CuisineType, CuisineEnum
 
 def seed_cuisines():
     for cuisine in CuisineEnum:

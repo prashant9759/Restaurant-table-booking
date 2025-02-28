@@ -1,4 +1,4 @@
-from tables import  *
+from models import  *
 from db import db
 
 from flask_jwt_extended import (
@@ -99,27 +99,47 @@ def get_item_by_id_logic(id, Model, entity):
  
 # Update an item & address
 
-def update_address(data,item):
-    item.street = data.get("street", item.street)
-    item.latitude = data.get("latitude", item.latitude)
-    item.longitude = data.get("longitude", item.longitude)
-    
-    # Update or create CityStateModel and assign it directly
-    city_state = CityStateModel.query.filter_by(postal_code=data["postal_code"]).first()
-    if not city_state:
-        city_state = CityStateModel(
-            city=data['city'],
-            state=data['state'],
-            postal_code=data["postal_code"]
-        )
-    item.city_state = city_state  # Pass the object directly, no need for flush
-   
-
-def update_logic(id, Model, data, entity):
+def update_address(item, data, entity):
     try:
-        item = Model.query.get(id)
-        if not item:
-            return {"message": f"No {entity} found"}, 404
+        item.street = data.get("street", item.street)
+        item.latitude = data.get("latitude", item.latitude)
+        item.longitude = data.get("longitude", item.longitude)
+
+        # Update or create CityStateModel and assign it directly
+        city_state = CityStateModel.query.filter_by(postal_code=data["postal_code"]).first()
+        if not city_state:
+            city_state = CityStateModel(
+                city=data['city'],
+                state=data['state'],
+                postal_code=data["postal_code"]
+            )
+            db.session.add(city_state)  # Add new city_state to session
+        
+        
+        item.city_state = city_state  # Assign the object directly
+        db.session.commit()
+
+        return {
+            "address": {
+                "street": item.street,
+                "latitude": item.latitude,
+                "longitude": item.longitude,
+                "city": item.city_state.city if item.city_state else None,
+                "state": item.city_state.state if item.city_state else None,
+                "postal_code": item.city_state.postal_code if item.city_state else None
+            },
+            "message": f"{entity.capitalize()}'s address updated successfully",
+            "status": 200
+        }, 200
+
+    except Exception as e:  # Catch exceptions properly
+        db.session.rollback()  # Rollback in case of error
+        abort(500, message=f"An error occurred while updating the address of {entity}. Error: {str(e)}")
+
+
+
+def update_logic(item, data, entity):
+    try:
 
         # Handle password updates (if applicable)
         if 'password' in data and hasattr(item, 'password'):
@@ -129,20 +149,8 @@ def update_logic(id, Model, data, entity):
 
         # Dynamically update fields based on model attributes
         for key, value in data.items():
-            if key == "address":
-                update_address(value, item)  # Handle address updates separately
-            elif key == "cuisines" and isinstance(item, Restaurant):
-                # Fetch cuisines from DB based on provided IDs or names
-                cuisine_instances = CuisineType.query.filter(CuisineType.name.in_(value)).all()
-                print(value)
-                print(cuisine_instances)
-                # Validate all cuisines exist
-                if len(cuisine_instances) != len(value):
-                    missing = set(value) - {c.name for c in cuisine_instances}
-                    raise ValueError(f"Invalid cuisines provided: {', '.join(missing)}")
-
-                # Update restaurant's cuisines
-                item.cuisines = cuisine_instances
+            if key == "shape":
+                setattr(item, key, TableShape(value)) 
             elif hasattr(item, key):
                 setattr(item, key, value)
 

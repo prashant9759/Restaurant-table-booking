@@ -6,9 +6,9 @@ from flask_jwt_extended import create_access_token, create_refresh_token, get_jw
 from sqlalchemy.exc import IntegrityError, SQLAlchemyError
 from passlib.hash import pbkdf2_sha256
 
-from tables import Admin, Restaurant
+from models import Admin
 from db import db
-from schemas import AdminSchema, LoginSchema , RestaurantSchema # Use AdminSchema
+from schemas import AdminSchema, LoginSchema# Use AdminSchema
 from services.logout import logout_logic
 from services.helper import *
 
@@ -44,7 +44,8 @@ class AdminList(MethodView):
         """Replace the current admin (PUT, idempotent)."""
         check_admin_role()
         admin_id = get_jwt_identity()
-        return update_logic(admin_id, Admin, admin_data, "admin")
+        admin = Admin.query.get_or_404(int(admin_id))
+        return update_logic(admin ,admin_data, "admin")
 
     @jwt_required()
     @blp.arguments(AdminSchema(partial=True))
@@ -52,7 +53,8 @@ class AdminList(MethodView):
         """Update the current admin (PATCH, partial update)."""
         check_admin_role()
         admin_id = get_jwt_identity()
-        return update_logic(admin_id, Admin, admin_data, "admin")
+        admin = Admin.query.get_or_404(int(admin_id))
+        return update_logic(admin ,admin_data, "admin")
 
     @jwt_required()
     @blp.response(204)
@@ -67,126 +69,7 @@ class AllAdmins(MethodView):
     def get(self):
         """Get all admins without any authentication."""
         return get_all_item_logic(Admin, "admin")
-    
-@blp.route("/api/admins/restaurants")
-class AdminList(MethodView):
-    @jwt_required()
-    @blp.arguments(RestaurantSchema)
-    def post(self, data):
-        """Create a new restaurant and return the created restaurant with tokens."""
-        check_admin_role()
-        admin_id = get_jwt_identity()
-        address_field = manage_address_field(data)
-        
-        # Assuming data["cuisines"] is a list of cuisine names (strings)
-
-        cuisine_names = data.pop("cuisines", [])
-
-        # Fetch CuisineType instances matching the given names
-        cuisine_instances = CuisineType.query.filter(CuisineType.name.in_(cuisine_names)).all()
-
-        if len(cuisine_instances) != len(cuisine_names):
-            missing = set(cuisine_names) - {c.name for c in cuisine_instances}
-            raise ValueError(f"Invalid cuisines provided: {', '.join(missing)}")
-
-        # Now create the restaurant with cuisine instances
-        restaurant = Restaurant(
-            admin_id=admin_id,
-            **data,
-            **address_field,
-            cuisines=cuisine_instances  # Pass the actual model instances
-        )
-
-        db.session.add(restaurant)
-        db.session.commit()
-
-
-        try:
-            db.session.add(restaurant)
-            db.session.commit()
-        except IntegrityError as e:
-            db.session.rollback()
-            abort(500, message=f"{e.orig}")
-        except SQLAlchemyError as e:
-            db.session.rollback()
-            print("error",e)
-            abort(500, message="An error occurred while creating the restaurant.")
-
-        return {
-            "restaurant": restaurant.to_dict(),
-            "message": "Restaurant created successfully",
-            "status": 201
-        } , 201
-
-@blp.route("/api/restaurants/<int:restaurant_id>")
-class RestaurantSelf(MethodView):
-    @jwt_required()
-    def get(self, restaurant_id):
-        """Get a specific restaurant if it belongs to the current admin."""
-        check_admin_role()
-        admin_id = get_jwt_identity()
-        restaurant = Restaurant.query.get(restaurant_id)
-        if str(restaurant.admin_id) != admin_id:
-            abort(403, message="You do not have permission to access this restaurant.")
-
-        return  {
-            "restaurant": restaurant.to_dict(),
-            "message": "Restaurant fetched successfully",
-            "status": 200
-        } , 200
-
-    @jwt_required()
-    @blp.arguments(RestaurantSchema)
-    def put(self, restaurant_data, restaurant_id):
-        """Replace the restaurant (PUT) if it belongs to the admin."""
-        check_admin_role()
-        admin_id = get_jwt_identity()
-
-        restaurant = Restaurant.query.get(restaurant_id)
-        if str(restaurant.admin_id) != admin_id:
-            abort(403, message="You do not have permission to modify this restaurant.")
-
-        return update_logic(restaurant_id, Restaurant, restaurant_data, "restaurant")
-
-    @jwt_required()
-    @blp.arguments(RestaurantSchema(partial=True))
-    def patch(self, restaurant_data, restaurant_id):
-        """Partially update the restaurant (PATCH) if it belongs to the admin."""
-        check_admin_role()
-        admin_id = get_jwt_identity()
-
-        restaurant = Restaurant.query.get(restaurant_id)
-        if str(restaurant.admin_id) != admin_id:
-            abort(403, message="You do not have permission to modify this restaurant.")
-
-        return update_logic(restaurant_id, Restaurant, restaurant_data, "restaurant")
-
-    @jwt_required()
-    @blp.response(204)
-    def delete(self, restaurant_id):
-        """Delete the restaurant if it belongs to the admin."""
-        check_admin_role()
-        admin_id = get_jwt_identity()
-
-        restaurant = Restaurant.query.get(restaurant_id)
-        if str(restaurant.admin_id) != admin_id:
-            abort(403, message="You do not have permission to delete this restaurant.")
-
-        return delete_logic(restaurant_id, Restaurant, "restaurant")
-
-
-@blp.route("/api/restaurants/all")
-class AllRestaurants(MethodView):
-    @jwt_required()
-    def get(self):
-        """Get all restaurants managed by the current admin."""
-        check_admin_role()
-        admin_id = get_jwt_identity()
-
-        # Fetch all restaurants belonging to this admin
-        restaurants = Restaurant.query.filter_by(admin_id=admin_id).all()
-        return restaurants
-    
+     
     
 
 @blp.route("/api/admins/login")
