@@ -1,4 +1,3 @@
-from email import message
 from flask_smorest import Blueprint, abort
 from flask.views import MethodView
 from flask_jwt_extended import (
@@ -14,6 +13,7 @@ from sqlalchemy.orm import raiseload
 from models import (
     Restaurant, 
     CuisineType,
+    FoodPreferenceType,
     RestaurantPolicy,
     CityStateModel
 )
@@ -22,6 +22,7 @@ from schemas import  (
     RestaurantSchema , 
     RestaurantPolicySchema, 
     CuisineUpdateSchema, 
+    FoodPreferenceUpdateSchema,
     AddressSchema
 )
 from services.helper import *
@@ -33,6 +34,78 @@ def check_admin_role():
     claims = get_jwt()
     if claims.get("role") != "admin":
         abort(403, message="Access forbidden: Admin role required.")
+
+
+def handle_item_update(restaurant_id, data, item_name, Model):
+    """
+    Generic function to update restaurant items (cuisines or food_preferences).
+    
+    Parameters:
+    - restaurant_id: ID of the restaurant
+    - data: Dictionary containing "add" and "remove" lists
+    - item_name: Name of the attribute in Restaurant model ("cuisines" or "food_preferences")
+    - Model: SQLAlchemy model representing the item (CuisineType or FoodPreference)
+    """
+    check_admin_role()
+    admin_id = get_jwt_identity()
+
+    # Fetch restaurant and check permission
+    restaurant = Restaurant.query.filter_by(id=restaurant_id).first_or_404()
+    if str(restaurant.admin_id) != admin_id:
+        abort(403, message="You do not have permission to modify this restaurant.")
+
+    # Extract add/remove lists
+    items_to_add = set(data.get("add", []))
+    items_to_remove = set(data.get("remove", []))
+
+    if not items_to_add and not items_to_remove:
+        abort(400, message="Nothing to update.")
+
+    # Get current items
+    current_items = {getattr(i, "name") for i in getattr(restaurant, item_name)}
+
+    # Validate removals
+    invalid_removals = items_to_remove - current_items
+    if invalid_removals:
+        abort(400, message=f"Cannot remove {item_name} that are not assigned to the restaurant: {', '.join(invalid_removals)}")
+
+    # Validate additions
+    invalid_additions = items_to_add & current_items
+    if invalid_additions:
+        abort(400, message=f"Cannot add {item_name} that are already assigned to the restaurant: {', '.join(invalid_additions)}")
+
+    # Fetch valid items from DB
+    valid_items = Model.query.filter(Model.name.in_(items_to_add | items_to_remove)).all()
+    valid_item_names = {i.name for i in valid_items}
+
+    # Identify invalid items
+    invalid_items = (items_to_add | items_to_remove) - valid_item_names
+    if invalid_items:
+        abort(400, message=f"Invalid {item_name} provided: {', '.join(invalid_items)}")
+
+    # Convert valid items into a dictionary for quick lookup
+    item_map = {i.name: i for i in valid_items}
+
+    # Add new items
+    for name in items_to_add:
+        getattr(restaurant, item_name).append(item_map[name])
+
+    # Remove items
+    setattr(restaurant, item_name, [i for i in getattr(restaurant, item_name) if i.name not in items_to_remove])
+
+    # Commit transaction
+    try:
+        db.session.commit()
+    except SQLAlchemyError:
+        db.session.rollback()
+        abort(500, message=f"Failed to update restaurant {item_name}.")
+
+    return {
+        "message": f"Restaurant {item_name} updated successfully.",
+        item_name: [i.name for i in getattr(restaurant, item_name)],
+    }, 200
+
+
 
 
 @blp.route("/api/admins/restaurants")
@@ -52,6 +125,14 @@ class AdminList(MethodView):
         if len(cuisine_instances) != len(cuisine_names):
             missing = set(cuisine_names) - {c.name for c in cuisine_instances}
             abort(400, message=f"Invalid cuisines provided: {', '.join(missing)}")
+            
+        # Extract and process cuisines
+        food_preference_names = data.pop("food_preferences", [])
+        food_preference_instances = FoodPreferenceType.query.filter(FoodPreferenceType.name.in_(food_preference_names)).all()
+
+        if len(food_preference_instances) != len(food_preference_names):
+            missing = set(food_preference_names) - {c.name for c in food_preference_instances}
+            abort(400, message=f"Invalid foodPreferences provided: {', '.join(missing)}")
 
         # Extract and process policy
         policy_data = data.pop("policy", None)
@@ -66,7 +147,8 @@ class AdminList(MethodView):
                 policy=policy,  # Assign directly using relationship
                 **data,
                 **address_field,
-                cuisines=cuisine_instances
+                cuisines=cuisine_instances,
+                food_preferences = food_preference_instances
             )
 
             db.session.add(restaurant)
@@ -113,19 +195,14 @@ class RestaurantSelf(MethodView):
         check_admin_role()
         admin_id = get_jwt_identity()
 
-        restaurant = db.session.query(
-            Restaurant.id, 
-            Restaurant.name, 
-            Restaurant.cover_image, 
-            Restaurant.description,
-            Restaurant.admin_id
-        ).filter_by(id=restaurant_id).first_or_404()
+        restaurant = db.session.query(Restaurant).filter_by(id=restaurant_id).first_or_404()
+
 
         if str(restaurant.admin_id) != admin_id:
             abort(403, message="You do not have permission to modify this restaurant.")
 
         # Remove unwanted fields (cuisines, address, policy) before updating
-        restricted_fields = {"cuisines", "address", "policy"}
+        restricted_fields = {"cuisines", "address", "policy", "food_preferences"}
         filtered_data = {key: value for key, value in update_data.items() if key not in restricted_fields}
 
         if not filtered_data:
@@ -228,66 +305,17 @@ class RestaurantCuisineResource(MethodView):
     @blp.arguments(CuisineUpdateSchema)
     def patch(self, cuisine_data, restaurant_id):
         """Add or remove cuisines from a restaurant."""
-        check_admin_role()
-        admin_id = get_jwt_identity()
+        return handle_item_update(restaurant_id, cuisine_data,"cuisines",CuisineType)
+    
+@blp.route("/api/admins/restaurants/<int:restaurant_id>/food_preferences")
+class RestaurantFoodPreferenceResource(MethodView):
 
-        # Fetch only required fields: admin_id and cuisines
-        restaurant = Restaurant.query.filter_by(id=restaurant_id).first_or_404()
-
-
-        if str(restaurant.admin_id) != admin_id:
-            abort(403, message="You do not have permission to modify this restaurant.")
-
-        # Extract cuisine names from request data
-        cuisines_to_add = set(cuisine_data.get("add", []))
-        cuisines_to_remove = set(cuisine_data.get("remove", []))
+    @jwt_required()
+    @blp.arguments(FoodPreferenceUpdateSchema)
+    def patch(self, food_preference_data, restaurant_id):
+        """Add or remove cuisines from a restaurant."""
+        return handle_item_update(restaurant_id, food_preference_data,"food_preferences",FoodPreferenceType)
         
-        if not cuisines_to_add and not cuisines_to_remove:
-            abort(400, message = "Nothing to update")
-
-        # Fetch existing cuisines of the restaurant
-        current_cuisines = {c.name for c in restaurant.cuisines}
-
-        # Ensure cuisines to remove actually exist in the restaurant
-        invalid_removals = cuisines_to_remove - current_cuisines
-        if invalid_removals:
-            abort(400, message=f"Cannot remove cuisines that are not assigned to the restaurant: {', '.join(invalid_removals)}")
-
-        # Ensure cuisines to add are not already present
-        invalid_additions = cuisines_to_add & current_cuisines
-        if invalid_additions:
-            abort(400, message=f"Cannot add cuisines that are already assigned to the restaurant: {', '.join(invalid_additions)}")
-
-        # Fetch valid cuisines from the database
-        valid_cuisines = CuisineType.query.filter(CuisineType.name.in_(cuisines_to_add | cuisines_to_remove)).all()
-        valid_cuisine_names = {c.name for c in valid_cuisines}
-
-        # Identify invalid cuisines
-        invalid_cuisines = (cuisines_to_add | cuisines_to_remove) - valid_cuisine_names
-        if invalid_cuisines:
-            abort(400, message=f"Invalid cuisines provided: {', '.join(invalid_cuisines)}")
-
-        # Convert valid cuisines into a dictionary for quick lookup
-        cuisine_map = {c.name: c for c in valid_cuisines}
-
-        # Add cuisines
-        for name in cuisines_to_add:
-            restaurant.cuisines.append(cuisine_map[name])
-
-        # Remove cuisines
-        restaurant.cuisines = [c for c in restaurant.cuisines if c.name not in cuisines_to_remove]
-
-        try:
-            db.session.commit()
-        except SQLAlchemyError:
-            db.session.rollback()
-            abort(500, message="Failed to update restaurant cuisines.")
-
-        return {
-            "message": "Restaurant cuisines updated successfully.",
-            "cuisines": [c.name for c in restaurant.cuisines],
-        }, 200
-
 
 @blp.route("/api/admins/restaurants/<int:restaurant_id>/address")
 class RestaurantAddressResource(MethodView):

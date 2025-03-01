@@ -103,7 +103,8 @@ class TableTypeResource(MethodView):  # Inherit from MethodView
         check_admin_role()
         admin_id = get_jwt_identity()
         verify_admin_ownership(admin_id, restaurant_id)
-        return update_logic(table_type_id, TableType, update_data, "table type")
+        table_type = TableType.query.get_or_404(table_type_id)
+        return update_logic(table_type, update_data, "table type")
 
     @jwt_required()
     @blp.response(204)

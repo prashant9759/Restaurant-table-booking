@@ -9,13 +9,14 @@ from dotenv import load_dotenv
 from db import db
 
 
-from models import CuisineType, CuisineEnum
+from models import CuisineType, CuisineEnum, FoodPreferenceType, FoodPreferenceEnum
 
 from controllers.user import blp as UserBlp
 from controllers.admin import blp as AdminBlp
 from controllers.restaurant import blp as RestaurantBlp
 from controllers.tableType import blp as tableTypeBlp
 from controllers.tableInstance import blp as tableBlp
+from controllers.presentation import blp as PresentationBlp
 
 from services.logout import is_token_revoked
 
@@ -97,6 +98,7 @@ api.register_blueprint(AdminBlp)
 api.register_blueprint(RestaurantBlp)
 api.register_blueprint(tableTypeBlp)
 api.register_blueprint(tableBlp)
+api.register_blueprint(PresentationBlp)
 
 
 @app.route('/')
@@ -104,22 +106,35 @@ def home():
     return jsonify({"message": "Welcome to the Restaurant Management API!"})
 
 
-def seed_cuisines():
+def seed_cuisines_and_food_preferences():
+    # Seeding Cuisines
     for cuisine in CuisineEnum:
         existing_cuisine = CuisineType.query.filter_by(name=cuisine.value).first()
         if not existing_cuisine:
             new_cuisine = CuisineType(name=cuisine.value)
             db.session.add(new_cuisine)
-            print(f"Added: {cuisine.value}")
+            print(f"Added Cuisine: {cuisine.value}")
         else:
             print(f"Already exists: {cuisine.value}")
 
+    # Seeding Food Preferences
+    for preference in FoodPreferenceEnum:
+        existing_preference = FoodPreferenceType.query.filter_by(name=preference.value).first()
+        if not existing_preference:
+            new_preference = FoodPreferenceType(name=preference.value)
+            db.session.add(new_preference)
+            print(f"Added Food Preference: {preference.value}")
+        else:
+            print(f"Already exists: {preference.value}")
+
+    # Commit changes
     try:
         db.session.commit()
-        print("✅ All cuisines seeded successfully.")
+        print("✅ All cuisines and food preferences seeded successfully.")
     except Exception as e:
         db.session.rollback()
-        print(f"❌ Error seeding cuisines: {e}")
+        print(f"❌ Error seeding cuisines and food preferences: {e}")
+
 
 
 
@@ -128,5 +143,5 @@ def seed_cuisines():
 if __name__ == '__main__':
     with app.app_context():
         db.create_all()
-        seed_cuisines()
+        seed_cuisines_and_food_preferences()
         app.run(debug=True)

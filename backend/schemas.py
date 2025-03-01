@@ -1,5 +1,21 @@
-from marshmallow import Schema, fields, validate, validates, ValidationError, post_load, validates_schema
-from models import CuisineEnum, Weekday, WEEKDAY_BITMASK, TableShape
+from marshmallow import (
+    Schema, 
+    fields, 
+    validate, 
+    validates, 
+    ValidationError, 
+    post_load, 
+    validates_schema
+)
+
+from models import (
+    CuisineEnum, 
+    Weekday, 
+    WEEKDAY_BITMASK, 
+    TableShape,
+    FoodPreferenceEnum
+)
+from sqlalchemy import select
 
 
 
@@ -14,6 +30,7 @@ class TableSchema(Schema):
 class TableTypeSchema(Schema):
     name = fields.Str(required=True, validate=validate.Length(min=1, max=50))
     capacity = fields.Int(required=True, validate=validate.Range(min=1))
+    price = fields.Float(required=True)
     description = fields.Str(validate=validate.Length(max=200))
     is_outdoor = fields.Bool(required=True)
     is_accessible = fields.Bool(missing=False)
@@ -74,9 +91,11 @@ class BaseUserSchema(Schema):
     created_at = fields.DateTime(dump_only=True)
 
     @validates('phone')
-    def validate_phone(self, value):
-        if value and not value.isdigit():
+    def validate_phone(self,  value):
+        if not value.isdigit():
             raise ValidationError("Phone number must contain only digits.")
+        if len(value) != 10:
+            raise ValidationError("Phone number must be exactly 10 digits long.")
         
 class UserSchema(BaseUserSchema):
     pass
@@ -96,6 +115,9 @@ class AddressSchema(Schema):
     latitude = fields.Float(required=True)
     longitude = fields.Float(required=True)
     
+
+    
+    
 class RestaurantSchema(Schema):
     name = fields.String(required=True, validate=validate.Length(min=1))
     cover_image = fields.String(required=False)
@@ -105,6 +127,12 @@ class RestaurantSchema(Schema):
         fields.String(validate=validate.OneOf([cuisine.value for cuisine in CuisineEnum])),
         required=True,
         validate=validate.Length(min=1, error="At least one cuisine must be provided.")
+    )
+    # Food Preferences from Enum
+    food_preferences = fields.List(
+        fields.String(validate=validate.OneOf([pref.value for pref in FoodPreferenceEnum])),
+        required=True,
+        validate=validate.Length(min=1, error="At least one food preference must be provided.")
     )
     # Nested Fields
     address = fields.Nested(AddressSchema, required=True)
@@ -119,12 +147,12 @@ class RestaurantSchema(Schema):
 
 class CuisineUpdateSchema(Schema):
     add = fields.List(
-        fields.String(validate=validate.OneOf([c.value for c in CuisineEnum])),
+        fields.String(validate=validate.OneOf([cuisine.value for cuisine in CuisineEnum])),
         required=False,
         missing=[]
     )
     remove = fields.List(
-        fields.String(validate=validate.OneOf([c.value for c in CuisineEnum])),
+        fields.String(validate=validate.OneOf([cuisine.value for cuisine in CuisineEnum])),
         required=False,
         missing=[]
     )
@@ -138,6 +166,45 @@ class CuisineUpdateSchema(Schema):
 
         if conflict:
             raise ValidationError(f"Cuisines cannot be both added and removed: {', '.join(conflict)}")
+
+
+class FoodPreferenceUpdateSchema(Schema):
+    add = fields.List(
+        fields.String(validate=validate.OneOf([food_preference.value for food_preference in FoodPreferenceEnum])),
+        required=False,
+        missing=[]
+    )
+    remove = fields.List(
+        fields.String(validate=validate.OneOf([food_preference.value for food_preference in FoodPreferenceEnum])),
+        required=False,
+        missing=[]
+    )
+
+    @validates_schema
+    def validate_food_preference_conflict(self, data, **kwargs):
+        """Ensure food_preferences are not present in both add & remove lists."""
+        add_food_preferences = set(data.get("add", []))
+        remove_food_preferences = set(data.get("remove", []))
+        conflict = add_food_preferences & remove_food_preferences
+
+        if conflict:
+            raise ValidationError(f"FoodPreferences cannot be both added and removed: {', '.join(conflict)}")
+
+
+
+class TableTypeInfoSchema(Schema):
+    table_type_id = fields.Int(required=True)
+    count = fields.Int(required=True, validate=validate.Range(min=1))
+
+class BookingRequestSchema(Schema):
+    guest_count = fields.Int(required=True, validate=validate.Range(min=1))
+    date = fields.Date(required=True)
+    start_time = fields.Str(
+        required=True,
+        validate=validate.Regexp(r"^(?:[01]\d|2[0-3]):[0-5]\d$", error="Invalid time format. Use HH:MM")
+    )
+    table_type_info = fields.List(fields.Nested(TableTypeInfoSchema), required=True, validate=validate.Length(min=1))
+
 
 
     

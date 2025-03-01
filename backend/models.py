@@ -5,6 +5,13 @@ from sqlalchemy import UniqueConstraint
 
 
 
+# Define Food Preference Enum
+class FoodPreferenceEnum(str, Enum):
+    VEG = "Veg"
+    NON_VEG = "Non-Veg"
+    VEGAN = "Vegan"
+
+
 
 # Define Cuisine Enum
 class CuisineEnum(str, Enum):
@@ -99,7 +106,13 @@ class Restaurant(db.Model):
         backref='restaurants',
         lazy='joined'  # Ensures cuisines are loaded via JOIN
     )
-
+    # Relationship for Food Preference
+    food_preferences = db.relationship(
+        'FoodPreferenceType',
+        secondary='restaurant_food_preference',
+        backref='restaurants',
+        lazy='joined'  # Ensures food preferences are loaded via JOIN
+    )
 
 
     def to_dict(self):
@@ -113,6 +126,7 @@ class Restaurant(db.Model):
 
             # Address Object
             "address": {
+                "city_state_id": self.city_state_id,
                 "street": self.street,
                 "latitude": self.latitude,
                 "longitude": self.longitude,
@@ -129,6 +143,7 @@ class Restaurant(db.Model):
                 "phone": self.admin.phone if self.admin else None
             },
             "cuisines": [cuisine.name for cuisine in self.cuisines] if self.cuisines else [],
+            "food_preferences": [pref.name for pref in self.food_preferences] if self.food_preferences else [],
             "policy": self.policy.to_dict()
         }
 
@@ -188,6 +203,7 @@ class TableType(db.Model):
     shape = db.Column(db.Enum(TableShape), nullable=False)  # Added shape field
     is_accessible = db.Column(db.Boolean, default=False)  # Accessibility feature
     restaurant_id = db.Column(db.Integer, db.ForeignKey('restaurant.id'), nullable=False)
+    price = db.Column(db.Float, nullable=False)
     
     __table_args__ = (UniqueConstraint('name', 'restaurant_id', name='_name_restaurant_uc'),)
     
@@ -201,7 +217,7 @@ class TableType(db.Model):
             "is_outdoor": self.is_outdoor,
             "is_accessible": self.is_accessible,
             "shape": self.shape.name if self.shape else None,  # Convert Enum to string
-            "restaurant_id": self.restaurant_id
+            "price": self.price
             
         }
 
@@ -210,35 +226,45 @@ class TableInstance(db.Model):
     __tablename__ = 'table_instance'
     id = db.Column(db.Integer, primary_key=True)
     table_type_id = db.Column(db.Integer, db.ForeignKey('table_type.id'), nullable=False)
-    table_number = db.Column(db.String(20), nullable=False)  # Unique ID within restaurant
+    table_number = db.Column(db.String(20), nullable=False, unique=True)  # Unique ID within restaurant
     location_description = db.Column(db.String(100))  # e.g., "Near window", "By the patio"
     is_available = db.Column(db.Boolean, default=True)  # Track table availability
     
-    reservations = db.relationship('TableReservation', backref='table_instance', lazy=True)
     # Eagerly load table_type
-    table_type = db.relationship('TableType', backref='tables', lazy='joined')
+    table_type = db.relationship('TableType', backref='tables', lazy='select')
     
     def to_dict(self):
         return {
             "table_id": self.id,
-            "is_reserved": self.is_reserved,
-            "table_type": self.table_type.to_dict() if self.table_type else None,
             "table_number": self.table_number,
             "location_description": self.location_description,
             "is_available": self.is_available
         }
 
 
-class TableReservation(db.Model):
-    __tablename__ = 'table_reservation'
+class Booking(db.Model):
+    __tablename__ = "booking"
+    
     id = db.Column(db.Integer, primary_key=True)
-    table_instance_id = db.Column(db.Integer, db.ForeignKey('table_instance.id'), nullable=False)
-    reservation_date = db.Column(db.Date, nullable=False)
-    start_time = db.Column(db.Time, nullable=False)
-    end_time = db.Column(db.Time, nullable=False)
-    customer_name = db.Column(db.String(100), nullable=False)
-    customer_contact = db.Column(db.String(15), nullable=False)
+    restaurant_id = db.Column(db.Integer, db.ForeignKey('restaurant.id'), nullable=False)
+    date = db.Column(db.Date, nullable=False)
+    start_time = db.Column(db.String(10), nullable=False)  # Example: "18:00"
+    user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    updated_at = db.Column(db.DateTime, default=datetime.utcnow)
+    tables = db.relationship("BookingTable", back_populates="booking")
+    guest_count = db.Column(db.Integer, nullable = True)
 
+
+class BookingTable(db.Model):  
+    __tablename__ = "booking_table"
+
+    id = db.Column(db.Integer, primary_key=True)
+    booking_id = db.Column(db.Integer, db.ForeignKey("booking.id"), nullable=False)
+    table_id = db.Column(db.Integer, db.ForeignKey("table_instance.id"), nullable=False)
+
+    booking = db.relationship("Booking", back_populates="tables")
+    table = db.relationship("TableInstance", backref="bookings")
 
 
 class RestaurantPolicy(db.Model):
@@ -277,6 +303,11 @@ class CuisineType(db.Model):
     name = db.Column(db.String(50), nullable=False, unique=True)  # e.g., 'Veg', 'Non-Veg', 'Vegan'
 
 
+class FoodPreferenceType(db.Model):
+    __tablename__ = 'food_preference_type'
+    id = db.Column(db.Integer, primary_key=True)
+    name = db.Column(db.String(50), nullable=False, unique=True)  # e.g., 'Veg', 'Non-Veg', 'Vegan'
+
 
 
 class RestaurantCuisine(db.Model):
@@ -284,6 +315,12 @@ class RestaurantCuisine(db.Model):
     restaurant_id = db.Column(db.Integer, db.ForeignKey('restaurant.id'), primary_key=True)
     cuisine_type_id = db.Column(db.Integer, db.ForeignKey('cuisine_type.id'), primary_key=True)
     
+    
+class RestaurantFoodPreference(db.Model):
+    __tablename__ = 'restaurant_food_preference'
+    restaurant_id = db.Column(db.Integer, db.ForeignKey('restaurant.id'), primary_key=True)
+    food_preference_id = db.Column(db.Integer, db.ForeignKey('food_preference_type.id'), primary_key=True)
+
 
 
 

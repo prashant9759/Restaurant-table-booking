@@ -62,7 +62,6 @@ class TableListResource(MethodView):
             abort(400, message=f"Integrity error while creating tables: {str(e.orig)}")
 
     @jwt_required()
-    @blp.response(200, TableSchema(many=True))
     def get(self, restaurant_id):
         """Get all tables for a restaurant."""
         check_admin_role()
