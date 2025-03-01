@@ -1,108 +1,113 @@
-/* Overall Home Page Styling */
-.home-container {
-    text-align: center;
-    background: linear-gradient(to right, #eef2f3, #8e9eab);
-    min-height: 100vh;
-    padding: 40px;
-    font-family: "Poppins", sans-serif;
-  }
-  
-  /* Hero Section */
-  .hero-section {
-    background: rgba(255, 255, 255, 0.2);
-    backdrop-filter: blur(10px);
-    border-radius: 15px;
-    padding: 30px;
-    margin: 20px auto;
-    width: 80%;
-    box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
-  }
-  
-  .hero-section h1 {
-    font-size: 32px;
-    color: #333;
-    font-weight: bold;
-  }
-  
-  .hero-section p {
-    font-size: 18px;
-    color: #666;
-    margin-bottom: 20px;
-  }
-  
-  /* Search Bar */
-  .search-bar {
-    padding: 12px;
-    width: 60%;
-    border: none;
-    border-radius: 25px;
-    font-size: 16px;
-    box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
-  }
-  
-  /* Restaurant List */
-  .restaurant-list {
-    display: flex;
-    justify-content: center;
-    flex-wrap: wrap;
-    margin-top: 30px;
-  }
-  
-  /* Restaurant Cards */
-  .restaurant-card {
-    background: rgba(255, 255, 255, 0.3);
-    backdrop-filter: blur(10px);
-    padding: 20px;
-    margin: 15px;
-    border-radius: 15px;
-    box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
-    text-align: center;
-    width: 280px;
-    transition: transform 0.3s ease-in-out;
-  }
-  
-  .restaurant-card:hover {
-    transform: scale(1.05);
-  }
-  
-  .restaurant-card img {
-    width: 100%;
-    border-radius: 10px;
-  }
-  
-  .restaurant-info {
-    padding-top: 10px;
-  }
-  
-  .restaurant-info h3 {
-    font-size: 18px;
-    color: #222;
-  }
-  
-  .restaurant-info p {
-    font-size: 14px;
-    color: #555;
-  }
-  
-  .rating {
-    font-weight: bold;
-    color: #ff9800;
-  }
-  
-  /* Book Now Button */
-  .book-now-btn {
-    display: inline-block;
-    margin-top: 10px;
-    background: #ff5722;
-    color: white;
-    padding: 10px 15px;
-    border-radius: 5px;
-    text-decoration: none;
-    font-weight: bold;
-    transition: background 0.3s ease;
-  }
-  
-  .book-now-btn:hover {
-    background: #e64a19;
-  }
-  
+/* General Styles */
+body {
+  font-family: 'Poppins', sans-serif;
+  background-color: #f8f9fa;
+  margin: 0;
+  padding: 0;
+}
+
+/* Hero Section */
+.hero-section {
+  text-align: center;
+  padding: 50px 20px;
+  background: linear-gradient(to right, #ff5733, #ff914d);
+  color: white;
+}
+
+.search-bar {
+  padding: 12px;
+  width: 60%;
+  border: none;
+  border-radius: 20px;
+  margin-top: 15px;
+  font-size: 16px;
+}
+
+/* State Selection */
+.state-list {
+  text-align: center;
+  padding: 20px;
+}
+
+.state-buttons button {
+  background: #ff5733;
+  color: white;
+  border: none;
+  padding: 10px 15px;
+  margin: 5px;
+  cursor: pointer;
+  border-radius: 5px;
+}
+
+.state-buttons button:hover {
+  background: #ff914d;
+}
+
+/* Cuisine Filter */
+.filter-section {
+  text-align: center;
+  padding: 20px;
+}
+
+.filter-section select {
+  padding: 10px;
+  border-radius: 5px;
+  font-size: 16px;
+}
+
+/* Restaurant List */
+.restaurant-list {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  padding: 20px;
+}
+
+.restaurant-card {
+  background: white;
+  width: 300px;
+  margin: 15px;
+  border-radius: 10px;
+  box-shadow: 0px 4px 10px rgba(0, 0, 0, 0.1);
+  overflow: hidden;
+  transition: transform 0.3s ease-in-out;
+}
+
+.restaurant-card:hover {
+  transform: scale(1.05);
+}
+
+.restaurant-card img {
+  width: 100%;
+  height: 180px;
+}
+
+.restaurant-info {
+  padding: 15px;
+}
+
+.restaurant-info h3 {
+  margin: 0;
+  color: #333;
+}
+
+.rating {
+  font-size: 14px;
+  color: #ff5733;
+}
+
+.book-now-btn {
+  display: block;
+  width: 100%;
+  padding: 10px;
+  background: #ff5733;
+  color: white;
+  text-align: center;
+  border: none;
+  cursor: pointer;
+  border-radius: 5px;
+}
+
+.book-now-btn:hover {
+  background: #ff914d;
+}
