@@ -6,10 +6,15 @@ from werkzeug.exceptions import HTTPException
 import os
 from dotenv import load_dotenv
 
+from datetime import datetime
+import pytz
+
 from db import db
 
 
 from models import CuisineType, CuisineEnum, FoodPreferenceType, FoodPreferenceEnum
+
+from scheduler import scheduler
 
 from controllers.user import blp as UserBlp
 from controllers.admin import blp as AdminBlp
@@ -17,6 +22,7 @@ from controllers.restaurant import blp as RestaurantBlp
 from controllers.tableType import blp as tableTypeBlp
 from controllers.tableInstance import blp as tableBlp
 from controllers.presentation import blp as PresentationBlp
+from controllers.userBooking import blp as UserBookingBlp
 
 from services.logout import is_token_revoked
 
@@ -37,6 +43,21 @@ db.init_app(app)
 # Initialize JWT
 app.config['JWT_SECRET_KEY'] = os.getenv("JWT_SECRET_KEY")
 jwt = JWTManager(app)
+
+# def check_system_status():
+#     """Function to check if everything is fine (Runs every 10 seconds)."""
+#     print(f"System health check at {datetime.now(pytz.utc)} - Everything is fine!")
+
+# Start the scheduler
+
+# # Add a periodic job that runs every 10 seconds
+# scheduler.add_job(
+#     id="system_health_check",
+#     func=check_system_status,
+#     trigger="interval",
+#     seconds=10,
+#     replace_existing=True  # Ensures re-scheduling if it already exists
+# )
 
 
 
@@ -99,6 +120,7 @@ api.register_blueprint(RestaurantBlp)
 api.register_blueprint(tableTypeBlp)
 api.register_blueprint(tableBlp)
 api.register_blueprint(PresentationBlp)
+api.register_blueprint(UserBookingBlp)
 
 
 @app.route('/')
@@ -137,11 +159,16 @@ def seed_cuisines_and_food_preferences():
 
 
 
-
+print(f"🕒 System Time: {datetime.now()}")
+print(f"🕒 UTC Time: {datetime.now(pytz.utc)}")
 
 
 if __name__ == '__main__':
     with app.app_context():
+        scheduler.start()
         db.create_all()
         seed_cuisines_and_food_preferences()
         app.run(debug=True)
+
+
+

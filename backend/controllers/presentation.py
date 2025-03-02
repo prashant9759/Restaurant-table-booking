@@ -1,4 +1,3 @@
-from flask_jwt_extended import get_jwt_identity, jwt_required,get_jwt
 from flask_smorest import Blueprint, abort
 from flask.views import MethodView
 
@@ -6,32 +5,21 @@ from sqlalchemy.exc import IntegrityError, SQLAlchemyError
 from sqlalchemy.orm import raiseload, joinedload, subqueryload
 from collections import defaultdict
 
+from scheduler import scheduler
+
 from models import *
 from schemas import  *
 from services.helper import *
+from services.helper import generate_time_slots
 
 from db import db
 from datetime import datetime, timedelta
 
 
 
+
+
 blp = Blueprint("Presentation", __name__, description="Routes for our main website page")
-
-
-from datetime import datetime, time, timedelta
-
-def generate_time_slots(opening_time, closing_time, reservation_duration):
-    slots = []
-    
-    # Convert opening_time & closing_time to datetime for arithmetic operations
-    current_time = datetime.combine(datetime.today(), opening_time)
-    closing_datetime = datetime.combine(datetime.today(), closing_time)
-
-    while current_time + timedelta(minutes=reservation_duration) <= closing_datetime:
-        slots.append(current_time.strftime("%H:%M"))  # Format as HH:MM
-        current_time += timedelta(minutes=reservation_duration)  # Move to next slot
-
-    return slots
 
 
 
@@ -110,7 +98,7 @@ class RestaurantList(MethodView):
         }, 200
 
 
-@blp.route("/api/bookings/availability/<int:restaurant_id>/<string:date>")
+@blp.route("/api/restaurants/<int:restaurant_id>/availability/<string:date>")
 class AvailableTablesForDate(MethodView):
     def get(self, restaurant_id, date):
         # Fetch restaurant details
@@ -141,7 +129,8 @@ class AvailableTablesForDate(MethodView):
             .join(TableInstance, BookingTable.table_id == TableInstance.id)
             .filter(
                 Booking.date == date,  # Only for the requested date
-                Booking.restaurant_id == restaurant_id
+                Booking.restaurant_id == restaurant_id,
+                Booking.status == "active"
             )
             .group_by(Booking.start_time, TableInstance.table_type_id)
             .all()
@@ -153,7 +142,7 @@ class AvailableTablesForDate(MethodView):
         for start_time, count, table_type_id in booked_data:
             if table_type_id not in booked_tables_dict:
                 booked_tables_dict[table_type_id] = {}  # Initialize nested dictionary
-
+            print(f"for type_id {table_type_id} , booked table count is {count}")
             booked_tables_dict[table_type_id][start_time] = count  # Store count for the time slot
 
 
@@ -220,126 +209,6 @@ class AvailableTablesForDate(MethodView):
         return {"data":available_data, "message":"availability data detched successfully", "status":200},200
 
 
-
-
-@blp.route("/api/restaurants/<int:restaurant_id>/bookings")
-class CreateBooking(MethodView):
-    @jwt_required()
-    @blp.arguments(BookingRequestSchema)
-    def post(self, booking_data, restaurant_id):
-        """Create a new booking after validating user, restaurant, and table availability."""
-        user_id = get_jwt_identity()
-        claims = get_jwt()
-        if claims.get("role") != "user":
-            abort(403, message="Access forbidden: user role required.")
-        
-        guest_count = booking_data["guest_count"]
-        date = booking_data["date"]
-        start_time = booking_data["start_time"]
-        table_type_info = booking_data["table_type_info"]
-
-        # Step 1: Validate User
-        user = db.session.get(User, user_id)
-        if not user:
-            return {"message": "User not found."}, 404
-
-        # Step 2: Validate Restaurant
-        restaurant = db.session.get(Restaurant, restaurant_id)
-        if not restaurant:
-            return {"message": "Restaurant not found."}, 404
-
-        # Step 3: Fetch restaurant policy for table availability checks
-        policy = restaurant.policy
-        if not policy:
-            return {"message": "Restaurant policy not found."}, 404
-
-        # Step 4: Generate valid time slots
-        time_slots = generate_time_slots(
-            policy.opening_time, policy.closing_time, policy.reservation_duration
-        )
-        if start_time not in time_slots:
-            return {"message": "Invalid booking time."}, 400
-
-        # Step 5: Validate Table Types
-        table_type_ids = [t["table_type_id"] for t in table_type_info]
-        table_types = {t.id: t for t in db.session.execute(
-            select(TableType).where(
-                TableType.id.in_(table_type_ids),
-                TableType.restaurant_id == restaurant_id
-            )
-        ).scalars().all()}  # Convert to dict for easy lookup
-
-        if len(table_types) != len(table_type_info):
-            return {"message": "One or more table types are invalid or unavailable."}, 400
-
-        # Step 6: Fetch already booked tables for the given date & time
-        stmt = select(BookingTable.table_id).join(Booking).where(
-            Booking.restaurant_id == restaurant_id,
-            Booking.date == date,
-            Booking.start_time == start_time
-        )
-        already_booked_table_ids = set(db.session.execute(stmt).scalars().all())
-
-        # Step 7: Create Booking Instance
-        new_booking = Booking(
-            user_id=user_id,
-            restaurant_id=restaurant_id,
-            guest_count=guest_count,
-            date=date,
-            start_time=start_time
-        )
-
-        # Step 8: Assign Available Tables to Booking
-        booked_tables = []
-        table_details = {}
-
-        for table_type in table_type_info:
-            type_id = table_type["table_type_id"]
-            requested_count = table_type["count"]
-
-            # Fetch available tables
-            available_tables = db.session.execute(
-                select(TableInstance).where(
-                    TableInstance.table_type_id == type_id,
-                    TableInstance.id.notin_(already_booked_table_ids)
-                ).limit(requested_count)
-            ).scalars().all()
-
-            if len(available_tables) < requested_count:
-                return {"message": f"Not enough available tables for table_type_id {type_id}"}, 400
-
-            # Add to response data
-            table_details[type_id] = {
-                "table_type_info": table_types[type_id].to_dict(),
-                "tables": [table.to_dict() for table in available_tables]
-            }
-
-            # Prepare BookingTable instances
-            booked_tables.extend([BookingTable(table_id=table.id) for table in available_tables])
-
-        # Associate tables using SQLAlchemy relationship
-        new_booking.tables = booked_tables
-
-        # Step 9: Commit Transaction
-        try:
-            db.session.add(new_booking)
-            db.session.commit()
-            return {
-                "message": "Booking created successfully",
-                "booking_details": {
-                    "booking_id": new_booking.id,
-                    "user_id": new_booking.user_id,
-                    "restaurant_id": new_booking.restaurant_id,
-                    "guest_count": new_booking.guest_count,
-                    "date": str(new_booking.date),
-                    "start_time": str(new_booking.start_time),
-                    "assigned_tables": table_details
-                }
-            }, 201
-        except SQLAlchemyError as e:
-            db.session.rollback()
-            print(e)
-            return {"message": "Error occurred while creating the booking."}, 500
 
 
 

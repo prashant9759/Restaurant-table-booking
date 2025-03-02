@@ -10,9 +10,25 @@ from sqlalchemy.exc import IntegrityError, SQLAlchemyError
 from flask_smorest import abort
 from math import radians, sin, cos, sqrt, atan2
 
+from datetime import datetime, timedelta
+
 # Business Logic Functions for CRUD operations
 
 
+
+
+def generate_time_slots(opening_time, closing_time, reservation_duration):
+    slots = []
+    
+    # Convert opening_time & closing_time to datetime for arithmetic operations
+    current_time = datetime.combine(datetime.today(), opening_time)
+    closing_datetime = datetime.combine(datetime.today(), closing_time)
+
+    while current_time + timedelta(minutes=reservation_duration) <= closing_datetime:
+        slots.append(current_time.strftime("%H:%M"))  # Format as HH:MM
+        current_time += timedelta(minutes=reservation_duration)  # Move to next slot
+
+    return slots
 
 # 
 def manage_address_field(data):

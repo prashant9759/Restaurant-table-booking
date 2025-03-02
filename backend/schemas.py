@@ -64,6 +64,7 @@ class RestaurantPolicySchema(Schema):
     max_party_size = fields.Int(required=True, validate=validate.Range(min=1))
     max_advance_days = fields.Int(required=True, validate=validate.Range(min=0))
     reservation_duration = fields.Int(required=True, validate=validate.Range(min=1))
+    cancellation_threshold = fields.Int(required=True, validate=validate.Range(min=1))
 
     @validates("working_days")
     def validate_days(self, value):

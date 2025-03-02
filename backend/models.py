@@ -1,4 +1,5 @@
 from enum import unique, Enum
+
 from db import db
 from datetime import datetime
 from sqlalchemy import UniqueConstraint
@@ -220,15 +221,17 @@ class TableType(db.Model):
             "price": self.price
             
         }
-
+        
 
 class TableInstance(db.Model):
     __tablename__ = 'table_instance'
     id = db.Column(db.Integer, primary_key=True)
     table_type_id = db.Column(db.Integer, db.ForeignKey('table_type.id'), nullable=False)
-    table_number = db.Column(db.String(20), nullable=False, unique=True)  # Unique ID within restaurant
+    table_number = db.Column(db.String(20), nullable=False)  # Unique ID within restaurant
     location_description = db.Column(db.String(100))  # e.g., "Near window", "By the patio"
     is_available = db.Column(db.Boolean, default=True)  # Track table availability
+    
+    __table_args__ = (UniqueConstraint('table_number', 'table_type_id', name='_table_number_table_type_id_uc'),)
     
     # Eagerly load table_type
     table_type = db.relationship('TableType', backref='tables', lazy='select')
@@ -252,8 +255,11 @@ class Booking(db.Model):
     user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     updated_at = db.Column(db.DateTime, default=datetime.utcnow)
-    tables = db.relationship("BookingTable", back_populates="booking")
     guest_count = db.Column(db.Integer, nullable = True)
+    status = db.Column(db.String, nullable = False, default="active")
+    
+    tables = db.relationship("BookingTable", back_populates="booking")
+    
 
 
 class BookingTable(db.Model):  
@@ -276,6 +282,7 @@ class RestaurantPolicy(db.Model):
     max_party_size = db.Column(db.Integer, nullable=False)
     max_advance_days = db.Column(db.Integer, nullable=False)  # Max days in advance a table can be booked
     reservation_duration = db.Column(db.Integer, nullable=False)  # Duration in minutes for how long a table is reserved
+    cancellation_threshold = db.Column(db.Integer, nullable=False, default=60)  # in minutes
     
     def to_dict(self):
         """Convert RestaurantPolicy instance to dict, with working_days as an array."""
@@ -286,7 +293,8 @@ class RestaurantPolicy(db.Model):
             "closing_time": self.closing_time.strftime("%H:%M"),
             "max_party_size": self.max_party_size,
             "max_advance_days": self.max_advance_days,
-            "reservation_duration": self.reservation_duration
+            "reservation_duration": self.reservation_duration,
+            "cancellation_threshold":self.cancellation_threshold
         }
     def _bitmask_to_days(self):
         """Convert working_days bitmask to a list of weekday names."""

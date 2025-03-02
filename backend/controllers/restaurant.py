@@ -1,3 +1,4 @@
+from email import message
 from flask_smorest import Blueprint, abort
 from flask.views import MethodView
 from flask_jwt_extended import (
@@ -116,6 +117,10 @@ class AdminList(MethodView):
         """Create a new restaurant with policy and cuisines."""
         check_admin_role()
         admin_id = get_jwt_identity()
+        exists = db.session.query(Restaurant.query.filter_by(admin_id=admin_id).exists()).scalar()
+        if exists:
+            return abort(400, message="Can't create more than 1 restaurant from the same admin id")
+
         address_field = manage_address_field(data)
 
         # Extract and process cuisines

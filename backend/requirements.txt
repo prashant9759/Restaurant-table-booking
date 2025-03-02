@@ -4,3 +4,5 @@ flask_smorest
 flask_jwt_extended
 dotenv
 passlib
+apscheduler
+pytz
