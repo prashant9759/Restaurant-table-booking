@@ -196,7 +196,7 @@ class RestaurantSelf(MethodView):
     @jwt_required()
     @blp.arguments(RestaurantSchema(partial=True))
     def patch(self, update_data, restaurant_id):
-        """Update general details of a restaurant (excluding cuisines, address, and policy)."""
+        """Update general details of a restaurant (excluding cuisines, address, food_preferences and policy)."""
         check_admin_role()
         admin_id = get_jwt_identity()
 
@@ -318,7 +318,7 @@ class RestaurantFoodPreferenceResource(MethodView):
     @jwt_required()
     @blp.arguments(FoodPreferenceUpdateSchema)
     def patch(self, food_preference_data, restaurant_id):
-        """Add or remove cuisines from a restaurant."""
+        """Add or remove food_preferences from a restaurant."""
         return handle_item_update(restaurant_id, food_preference_data,"food_preferences",FoodPreferenceType)
         
 
@@ -328,7 +328,7 @@ class RestaurantAddressResource(MethodView):
     @jwt_required()
     @blp.arguments(AddressSchema(partial=True))
     def patch(self, data, restaurant_id):
-        """Partially update the restaurant policy."""
+        """Partially update the restaurant address."""
         check_admin_role()
         current_admin_id = get_jwt_identity()
 

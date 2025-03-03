@@ -71,7 +71,7 @@ class RestaurantList(MethodView):
 @blp.route("/api/restaurants/city/<int:city_state_id>/categorised_by_cuisines")
 class RestaurantList(MethodView):
     def get(self,city_state_id):
-        """Fetch all restaurants with required details"""
+        """Fetch all restaurants with required details categorised by cuisines"""
 
         restaurants = (
             db.session.query(Restaurant)
@@ -101,6 +101,7 @@ class RestaurantList(MethodView):
 @blp.route("/api/restaurants/<int:restaurant_id>/availability/<string:date>")
 class AvailableTablesForDate(MethodView):
     def get(self, restaurant_id, date):
+        """Fetch count of available tables for each table type on each slot of that date"""
         # Fetch restaurant details
         policy = (
             db.session.query(RestaurantPolicy)

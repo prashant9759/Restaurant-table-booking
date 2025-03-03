@@ -259,7 +259,7 @@ class Booking(db.Model):
     status = db.Column(db.String, nullable = False, default="active")
     
     tables = db.relationship("BookingTable", back_populates="booking")
-    
+    user = db.relationship("User", backref="booking")
 
 
 class BookingTable(db.Model):  

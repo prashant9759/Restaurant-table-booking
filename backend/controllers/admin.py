@@ -69,6 +69,7 @@ class AllAdmins(MethodView):
     def get(self):
         """Get all admins without any authentication."""
         return get_all_item_logic(Admin, "admin")
+    
      
     
 

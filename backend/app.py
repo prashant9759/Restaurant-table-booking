@@ -23,6 +23,7 @@ from controllers.tableType import blp as tableTypeBlp
 from controllers.tableInstance import blp as tableBlp
 from controllers.presentation import blp as PresentationBlp
 from controllers.userBooking import blp as UserBookingBlp
+from controllers.adminDashboard import blp as AdminDashboardBlp
 
 from services.logout import is_token_revoked
 
@@ -30,9 +31,13 @@ load_dotenv()  # Load environment variables from .env file
 
 app = Flask(__name__)
 app.config["PROPAGATE_EXCEPTIONS"] = True
-app.config["API_TITLE"] = "LifeLineGo API"
+app.config["API_TITLE"] = "Restaurant Table Reservation API"
 app.config["API_VERSION"] = "v1"
 app.config["OPENAPI_VERSION"] = "3.0.3"
+app.config["OPENAPI_URL_PREFIX"] = "/"  # Ensures API docs are served
+app.config["OPENAPI_SWAGGER_UI_PATH"] = "/swagger-ui"
+app.config["OPENAPI_SWAGGER_UI_URL"] = "https://cdn.jsdelivr.net/npm/swagger-ui-dist/"
+
 app.config["SQLALCHEMY_DATABASE_URI"] = os.getenv("SQLALCHEMY_DATABASE_URI")
 app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
 app.config["SECRET_KEY"] = os.getenv("SECRET_KEY")
@@ -121,6 +126,7 @@ api.register_blueprint(tableTypeBlp)
 api.register_blueprint(tableBlp)
 api.register_blueprint(PresentationBlp)
 api.register_blueprint(UserBookingBlp)
+api.register_blueprint(AdminDashboardBlp)
 
 
 @app.route('/')
