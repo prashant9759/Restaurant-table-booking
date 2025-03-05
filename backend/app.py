@@ -22,7 +22,7 @@ from controllers.restaurant import blp as RestaurantBlp
 from controllers.tableType import blp as tableTypeBlp
 from controllers.tableInstance import blp as tableBlp
 from controllers.presentation import blp as PresentationBlp
-from controllers.userBooking import blp as UserBookingBlp
+from controllers.user_restaurant import blp as UserRestaurantBlp
 from controllers.adminDashboard import blp as AdminDashboardBlp
 
 from services.logout import is_token_revoked
@@ -48,21 +48,6 @@ db.init_app(app)
 # Initialize JWT
 app.config['JWT_SECRET_KEY'] = os.getenv("JWT_SECRET_KEY")
 jwt = JWTManager(app)
-
-# def check_system_status():
-#     """Function to check if everything is fine (Runs every 10 seconds)."""
-#     print(f"System health check at {datetime.now(pytz.utc)} - Everything is fine!")
-
-# Start the scheduler
-
-# # Add a periodic job that runs every 10 seconds
-# scheduler.add_job(
-#     id="system_health_check",
-#     func=check_system_status,
-#     trigger="interval",
-#     seconds=10,
-#     replace_existing=True  # Ensures re-scheduling if it already exists
-# )
 
 
 
@@ -125,7 +110,7 @@ api.register_blueprint(RestaurantBlp)
 api.register_blueprint(tableTypeBlp)
 api.register_blueprint(tableBlp)
 api.register_blueprint(PresentationBlp)
-api.register_blueprint(UserBookingBlp)
+api.register_blueprint(UserRestaurantBlp)
 api.register_blueprint(AdminDashboardBlp)
 
 
@@ -163,10 +148,25 @@ def seed_cuisines_and_food_preferences():
         db.session.rollback()
         print(f"❌ Error seeding cuisines and food preferences: {e}")
 
+from sqlalchemy import text
+
+def drop_all_tables():
+    """Drops all tables in the database irrespective of foreign keys."""
+    db.session.commit()  # Ensure all pending transactions are committed
+
+    with db.engine.connect() as connection:
+        connection.execute(text("SET FOREIGN_KEY_CHECKS = 0"))  # ✅ Use text()
+
+    db.reflect()  # Reflect all tables from the database
+    db.drop_all()  # Drop all tables
+
+    with db.engine.connect() as connection:
+        connection.execute(text("SET FOREIGN_KEY_CHECKS = 1"))  # ✅ Use text()
+
+    print("All tables dropped successfully!")
 
 
-print(f"🕒 System Time: {datetime.now()}")
-print(f"🕒 UTC Time: {datetime.now(pytz.utc)}")
+
 
 
 if __name__ == '__main__':
@@ -174,7 +174,10 @@ if __name__ == '__main__':
         scheduler.start()
         db.create_all()
         seed_cuisines_and_food_preferences()
-        app.run(debug=True)
+        port = int(os.environ.get("PORT", 5000))  # Default to 5000 if PORT is not set
+        app.run(host="0.0.0.0", port=5000, debug=False)
+       
+
 
 
 
